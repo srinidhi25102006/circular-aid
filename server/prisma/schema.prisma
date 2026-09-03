@@ -1,0 +1,168 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id                 String   @id @default(uuid())
+  firebaseUid        String   @unique
+  email              String
+  role               String   @default("INDIVIDUAL")
+  verificationStatus String   @default("NOT_REQUIRED")
+  createdAt          DateTime @default(now())
+
+  hotelProfile           HotelProfile?
+  ngoProfile             NgoProfile?
+  recyclingCenterProfile RecyclingCenterProfile?
+  devices                Device[]
+  foodDonations          FoodDonation[]          @relation("HotelFoodDonations")
+  acceptedDonations      FoodDonation[]          @relation("NgoFoodDonations")
+  givenRatings           Rating[]                @relation("NgoRatings")
+  receivedRatings        Rating[]                @relation("HotelRatings")
+  notifications          Notification[]
+}
+
+model HotelProfile {
+  id                String   @id @default(uuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hotelName         String
+  managerName       String
+  phone             String
+  address           String
+  latitude          Float?
+  longitude         Float?
+  photoUrl          String?
+  gstNumber         String
+  category          String?  // e.g. "5-Star Hotel", "Restaurant", "Catering Service", "Bakery"
+  foodTypesProvided String?  // e.g. "Cooked Meals, Rice & Curry, Packaged Items"
+  dailyCapacity     String?  // e.g. "50-200 meals"
+  operatingTimings  String?  // e.g. "12:00 PM - 11:00 PM"
+  description       String?
+  documentUrl       String?  // FSSAI or GST certificate photo/document URL
+  adminNotes        String?  // Feedback note from admin
+  createdAt         DateTime @default(now())
+}
+
+model NgoProfile {
+  id                 String   @id @default(uuid())
+  userId             String   @unique
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ngoName            String
+  contactPerson      String
+  phone              String
+  address            String
+  latitude           Float?
+  longitude          Float?
+  registrationNumber String
+  websiteUrl         String?
+  causes             String?
+  description        String?
+  logoUrl            String?
+  certificateUrl     String?
+  adminNotes         String?
+  createdAt          DateTime @default(now())
+}
+
+model RecyclingCenterProfile {
+  id            String   @id @default(uuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  centerName    String
+  contactPerson String
+  phone         String
+  address       String
+  latitude      Float?
+  longitude     Float?
+  licenseNumber String
+  specialties   String   @default("[]") // JSON string in SQLite
+  createdAt     DateTime @default(now())
+
+  devices Device[]
+}
+
+model Device {
+  id                         String                  @id @default(uuid())
+  userId                     String
+  user                       User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceType                 String
+  estimatedCondition         String
+  visibleComponents          String?                 // JSON string in SQLite
+  hazardFlags                String?                 // JSON string in SQLite
+  confidenceScore            String?
+  recyclableMaterialEstimate String?
+  recyclingCenterId          String?
+  recyclingCenter            RecyclingCenterProfile? @relation(fields: [recyclingCenterId], references: [id], onDelete: SetNull)
+  status                     String                  @default("pending")
+  pickupMethod               String
+  proofPhotoUrl              String?
+  createdAt                  DateTime                @default(now())
+}
+
+model FoodDonation {
+  id                  String   @id @default(uuid())
+  hotelUserId         String
+  hotelUser           User     @relation("HotelFoodDonations", fields: [hotelUserId], references: [id], onDelete: Cascade)
+  foodType            String
+  quantity            String
+  pickupWindowStart   String
+  pickupWindowEnd     String
+  photoUrl            String?
+  status              String   @default("pending") // pending | matched | completed | rejected
+  matchedNgoId        String?
+  matchedNgoUser      User?    @relation("NgoFoodDonations", fields: [matchedNgoId], references: [id], onDelete: SetNull)
+  
+  // New Bidirectional & Timeline Fields
+  initiatorRole       String   @default("HOTEL") // HOTEL | NGO
+  foodDescription     String?  // e.g. "Rice + Dal + Vegetables"
+  preparedAt          String?  // e.g. "7:30 PM"
+  bestBefore          String?  // e.g. "10:00 PM"
+  rejectionReason     String?  // e.g. "Too far", "No volunteers available", "Quantity issue"
+  timelineStatus      String   @default("REQUEST_SENT") // REQUEST_SENT | ACCEPTED | FOOD_PREPARED | FOOD_READY | VOLUNTEER_ON_THE_WAY | ARRIVED | HANDOVER_COMPLETED | COMPLETED | REJECTED
+  handoverPhotoUrl    String?  // Handover proof photo
+  handoverCompletedAt DateTime?
+  createdAt           DateTime @default(now())
+
+  ratings  Rating[]
+  messages ChatMessage[]
+}
+
+model ChatMessage {
+  id          String       @id @default(uuid())
+  donationId  String
+  donation    FoodDonation @relation(fields: [donationId], references: [id], onDelete: Cascade)
+  senderUserId String
+  senderRole  String       // HOTEL | NGO | SYSTEM
+  messageText String
+  actionType  String?      // FOOD_READY | VOLUNTEER_ON_THE_WAY | ARRIVED | HANDOVER | LOCATION | TIMING | ACCEPT | REJECT
+  createdAt   DateTime     @default(now())
+}
+
+model Notification {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title      String
+  message    String
+  type       String   // REQUEST_RECEIVED | REQUEST_ACCEPTED | REQUEST_REJECTED | STATUS_CHANGE | CHAT_MESSAGE
+  donationId String?
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+}
+
+model Rating {
+  id          String       @id @default(uuid())
+  donationId  String
+  donation    FoodDonation @relation(fields: [donationId], references: [id], onDelete: Cascade)
+  ngoUserId   String
+  ngoUser     User         @relation("NgoRatings", fields: [ngoUserId], references: [id], onDelete: Cascade)
+  hotelUserId String
+  hotelUser   User         @relation("HotelRatings", fields: [hotelUserId], references: [id], onDelete: Cascade)
+  stars       Int
+  comment     String?
+  createdAt   DateTime     @default(now())
+}

@@ -1,0 +1,13 @@
+{
+  "name": "circularaid",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "server": "cd server && node index.js",
+    "client": "cd client && npm run dev",
+    "start": "cd server && node index.js"
+  },
+  "dependencies": {
+    "firebase": "^12.16.0"
+  }
+}
