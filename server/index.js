@@ -856,6 +856,70 @@ app.get('/api/admin/hotel/:id', async (req, res) => {
   }
 });
 
+// Admin Recycling Facilities Listing
+app.get('/api/admin/recyclers', async (req, res) => {
+  try {
+    const { status, search } = req.query;
+
+    let userWhere = { role: 'RECYCLER' };
+    if (status && status !== 'ALL') {
+      userWhere.verificationStatus = status;
+    }
+
+    let users = await prisma.user.findMany({
+      where: userWhere,
+      include: {
+        recyclingCenterProfile: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (search) {
+      const q = search.toLowerCase();
+      users = users.filter((u) => {
+        const p = u.recyclingCenterProfile || {};
+        return (
+          (p.centerName && p.centerName.toLowerCase().includes(q)) ||
+          (p.contactPerson && p.contactPerson.toLowerCase().includes(q)) ||
+          (p.licenseNumber && p.licenseNumber.toLowerCase().includes(q)) ||
+          (u.email && u.email.toLowerCase().includes(q))
+        );
+      });
+    }
+
+    res.json(users);
+  } catch (err) {
+    console.error('Error in /api/admin/recyclers:', err);
+    res.status(500).json({ error: 'Failed to fetch Recyclers list.' });
+  }
+});
+
+// Admin Recycling Facility Detailed Profile by User ID or Profile ID
+app.get('/api/admin/recycler/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    let recyclerUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { id: id },
+          { recyclingCenterProfile: { id: id } }
+        ]
+      },
+      include: { recyclingCenterProfile: true }
+    });
+
+    if (!recyclerUser) {
+      return res.status(404).json({ error: 'Recycling Facility profile not found.' });
+    }
+
+    res.json(recyclerUser);
+  } catch (err) {
+    console.error('Error in /api/admin/recycler/:id:', err);
+    res.status(500).json({ error: 'Failed to fetch Recycling Facility details.' });
+  }
+});
+
 // Smart Matching Endpoints
 // Nearby Approved NGOs for a Hotel
 app.get('/api/matching/nearby-ngos', async (req, res) => {
@@ -978,6 +1042,13 @@ app.post('/api/admin/verify-user', async (req, res) => {
     if (updatedUser.hotelProfile) {
       await prisma.hotelProfile.update({
         where: { id: updatedUser.hotelProfile.id },
+        data: { adminNotes: adminNotes || null },
+      });
+    }
+
+    if (updatedUser.recyclingCenterProfile) {
+      await prisma.recyclingCenterProfile.update({
+        where: { id: updatedUser.recyclingCenterProfile.id },
         data: { adminNotes: adminNotes || null },
       });
     }

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import NgoDetailsView from './NgoDetailsView';
 import HotelDetailsView from './HotelDetailsView';
+import RecyclerDetailsView from './RecyclerDetailsView';
 
 function AdminDashboard({ userEmail, onSignOut }) {
   const [ngos, setNgos] = useState([]);
@@ -68,6 +69,10 @@ function AdminDashboard({ userEmail, onSignOut }) {
       if (selectedHotelData) {
         const fresh = hotelsData.find((h) => h.id === selectedHotelData.id);
         if (fresh) setSelectedHotelData(fresh);
+      }
+      if (selectedRecyclerData) {
+        const fresh = recyclersData.find((r) => r.id === selectedRecyclerData.id);
+        if (fresh) setSelectedRecyclerData(fresh);
       }
     } catch (err) {
       console.error('Error fetching admin data:', err);
@@ -206,6 +211,20 @@ function AdminDashboard({ userEmail, onSignOut }) {
         hotelData={selectedHotelData}
         onBack={() => {
           setSelectedHotelData(null);
+          fetchData();
+        }}
+        onStatusUpdate={fetchData}
+      />
+    );
+  }
+
+  // If viewing dedicated Recycler details page
+  if (selectedRecyclerData) {
+    return (
+      <RecyclerDetailsView
+        recyclerData={selectedRecyclerData}
+        onBack={() => {
+          setSelectedRecyclerData(null);
           fetchData();
         }}
         onStatusUpdate={fetchData}
@@ -396,7 +415,14 @@ function AdminDashboard({ userEmail, onSignOut }) {
                           </td>
                           <td style={{ padding: '12px' }}>{renderStatusPill(u.verificationStatus)}</td>
                           <td style={{ padding: '12px', textAlign: 'right' }}>
-                            <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                            <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                              <button
+                                className="btn btn-secondary"
+                                style={{ width: 'auto', padding: '6px 12px', fontSize: 12, fontWeight: 700, marginBottom: 0 }}
+                                onClick={() => setSelectedRecyclerData(u)}
+                              >
+                                🔍 View Details
+                              </button>
                               {u.verificationStatus !== 'APPROVED' && (
                                 <button
                                   className="btn btn-primary"
@@ -694,11 +720,26 @@ function AdminDashboard({ userEmail, onSignOut }) {
                       <span className="badge badge-warning">{u.role}</span>
                     </div>
                     <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4, marginBottom: 12 }}>Address: {p.address || 'N/A'} &bull; Phone: {p.phone || 'N/A'}</p>
-                    <div className="row" style={{ width: '100%' }}>
-                      <button className="btn btn-primary" style={{ marginBottom: 0 }} disabled={processingId === u.id} onClick={() => handleVerifyQuick(u.id, 'APPROVED')}>
+                    <div className="row" style={{ width: '100%', gap: 6, flexWrap: 'wrap' }}>
+                      <button
+                        className="btn btn-secondary"
+                        style={{ marginBottom: 0, padding: '6px 12px', fontSize: 12, fontWeight: 700 }}
+                        onClick={() => {
+                          if (u.role === 'RECYCLER' || u.recyclingCenterProfile) {
+                            setSelectedRecyclerData(u);
+                          } else if (u.role === 'NGO' || u.ngoProfile) {
+                            setSelectedNgoData(u);
+                          } else if (u.role === 'HOTEL' || u.hotelProfile) {
+                            setSelectedHotelData(u);
+                          }
+                        }}
+                      >
+                        🔍 View Details & Document
+                      </button>
+                      <button className="btn btn-primary" style={{ marginBottom: 0, padding: '6px 12px', fontSize: 12, fontWeight: 700 }} disabled={processingId === u.id} onClick={() => handleVerifyQuick(u.id, 'APPROVED')}>
                         ✓ Approve
                       </button>
-                      <button className="btn btn-danger" style={{ marginBottom: 0 }} disabled={processingId === u.id} onClick={() => handleVerifyQuick(u.id, 'REJECTED')}>
+                      <button className="btn btn-danger" style={{ marginBottom: 0, padding: '6px 12px', fontSize: 12, fontWeight: 700 }} disabled={processingId === u.id} onClick={() => handleVerifyQuick(u.id, 'REJECTED')}>
                         ✕ Reject
                       </button>
                     </div>
