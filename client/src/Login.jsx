@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
+import GlobalNavControls from './GlobalNavControls';
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -61,7 +62,10 @@ function Login({ mode, role, onLogin, onBack }) {
   return (
     <div className="page fade-in">
       <div className="container">
-        <button className="back-link" onClick={onBack}>← Back to Role Selection</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+          <GlobalNavControls />
+          <button className="back-link" style={{ margin: 0 }} onClick={onBack}>← Back to Role Selection</button>
+        </div>
 
         <div className="card">
           <div style={{ marginBottom: 14 }}>

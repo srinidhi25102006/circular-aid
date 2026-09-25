@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import NgoDetailsView from './NgoDetailsView';
 import HotelDetailsView from './HotelDetailsView';
 import RecyclerDetailsView from './RecyclerDetailsView';
+import GlobalNavControls from './GlobalNavControls';
 
 function AdminDashboard({ userEmail, onSignOut }) {
   const [ngos, setNgos] = useState([]);
@@ -238,9 +239,12 @@ function AdminDashboard({ userEmail, onSignOut }) {
         {/* Portal Header */}
         <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
           <div>
-            <h1 style={{ fontSize: 26, fontWeight: 800, color: '#17352D', margin: 0 }}>
-              🛡️ Governance & Platform Administration
-            </h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <GlobalNavControls />
+              <h1 style={{ fontSize: 26, fontWeight: 800, color: '#17352D', margin: 0 }}>
+                🛡️ Governance & Platform Administration
+              </h1>
+            </div>
             <p style={{ fontSize: 14, color: 'var(--muted)', margin: 0 }}>
               Verify recycling facilities, approve NGOs & hotels, and manage platform data.
             </p>

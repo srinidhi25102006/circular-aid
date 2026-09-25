@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import GlobalNavControls from './GlobalNavControls';
 
 function Welcome({ onGetStarted }) {
   return (
@@ -19,6 +20,7 @@ function Welcome({ onGetStarted }) {
       >
         <div style={{ maxWidth: 1150, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <GlobalNavControls style={{ marginRight: 6 }} />
             <div
               style={{
                 width: 40,

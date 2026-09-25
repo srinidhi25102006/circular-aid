@@ -3,6 +3,7 @@ import { AnimatePresence } from 'framer-motion';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './firebase';
 import PageTransition from './PageTransition';
+import { useNavigation } from './NavigationContext';
 import Welcome from './Welcome';
 import RoleSelect from './RoleSelect';
 import Login from './Login';
@@ -20,33 +21,16 @@ function App() {
   const [user, setUser] = useState(null);
   const [dbUser, setDbUser] = useState(null);
   const [checkingAuth, setCheckingAuth] = useState(true);
-  const [screen, setScreenState] = useState('welcome'); // welcome -> roleSelect -> auth -> dashboard
+  const { currentNavState, pushNavState } = useNavigation();
+  const screen = currentNavState.screen || 'welcome';
   const [authMode, setAuthMode] = useState('signup');
   const [selectedRole, setSelectedRole] = useState(() => {
     return sessionStorage.getItem('circularaid_selected_role') || null;
   });
 
-  // Browser history popstate integration for natural Back / Forward navigation
-  const navigateScreen = (newScreen, replace = false) => {
-    setScreenState(newScreen);
-    if (replace) {
-      window.history.replaceState({ screen: newScreen }, '');
-    } else {
-      window.history.pushState({ screen: newScreen }, '');
-    }
+  const navigateScreen = (newScreen) => {
+    pushNavState({ screen: newScreen });
   };
-
-  useEffect(() => {
-    const handlePopState = (event) => {
-      if (event.state && event.state.screen) {
-        setScreenState(event.state.screen);
-      } else {
-        setScreenState('welcome');
-      }
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
 
   const syncUserWithBackend = async (firebaseUser, roleHint) => {
     const savedRole = roleHint || selectedRole || sessionStorage.getItem('circularaid_selected_role') || 'INDIVIDUAL';
@@ -132,7 +116,7 @@ function App() {
     if (currentRole === 'admin') {
       return (
         <div>
-          <Navbar userEmail={user.email} userRole="admin" onSignOut={handleSignOut} />
+          <Navbar userEmail={user.email} userRole="admin" activeTab={currentNavState.tab} onSelectTab={(tab) => pushNavState({ screen: 'dashboard', tab })} onSignOut={handleSignOut} />
           <AnimatePresence mode="wait">
             <PageTransition key="admin-dash">
               <AdminDashboard userEmail={user.email} onSignOut={handleSignOut} />
@@ -145,7 +129,7 @@ function App() {
     if (currentRole === 'individual') {
       return (
         <div>
-          <Navbar userEmail={user.email} userRole="individual" onSignOut={handleSignOut} />
+          <Navbar userEmail={user.email} userRole="individual" activeTab={currentNavState.tab} onSelectTab={(tab) => pushNavState({ screen: 'dashboard', tab })} onSignOut={handleSignOut} />
           <AnimatePresence mode="wait">
             <PageTransition key="individual-dash">
               <IndividualDashboard userEmail={user.email} firebaseUid={user.uid} onSignOut={handleSignOut} />
@@ -231,7 +215,7 @@ function App() {
     if (currentRole === 'hotel') {
       return (
         <div>
-          <Navbar userEmail={user.email} userRole="hotel" onSignOut={handleSignOut} />
+          <Navbar userEmail={user.email} userRole="hotel" activeTab={currentNavState.tab} onSelectTab={(tab) => pushNavState({ screen: 'dashboard', tab })} onSignOut={handleSignOut} />
           <AnimatePresence mode="wait">
             <PageTransition key="hotel-dash">
               <HotelDashboard userEmail={user.email} firebaseUid={user.uid} onSignOut={handleSignOut} />
@@ -244,7 +228,7 @@ function App() {
     if (currentRole === 'ngo') {
       return (
         <div>
-          <Navbar userEmail={user.email} userRole="ngo" onSignOut={handleSignOut} />
+          <Navbar userEmail={user.email} userRole="ngo" activeTab={currentNavState.tab} onSelectTab={(tab) => pushNavState({ screen: 'dashboard', tab })} onSignOut={handleSignOut} />
           <AnimatePresence mode="wait">
             <PageTransition key="ngo-dash">
               <NgoDashboard userEmail={user.email} firebaseUid={user.uid} onSignOut={handleSignOut} />
@@ -257,7 +241,7 @@ function App() {
     if (currentRole === 'recycler') {
       return (
         <div>
-          <Navbar userEmail={user.email} userRole="recycler" onSignOut={handleSignOut} />
+          <Navbar userEmail={user.email} userRole="recycler" activeTab={currentNavState.tab} onSelectTab={(tab) => pushNavState({ screen: 'dashboard', tab })} onSignOut={handleSignOut} />
           <AnimatePresence mode="wait">
             <PageTransition key="recycler-dash">
               <RecyclerDashboard userEmail={user.email} firebaseUid={user.uid} onSignOut={handleSignOut} />

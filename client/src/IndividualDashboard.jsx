@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import RecycleFlow from './RecycleFlow';
+import GlobalNavControls from './GlobalNavControls';
 
 function IndividualDashboard({ userEmail, firebaseUid }) {
   const [inFlow, setInFlow] = useState(false);
@@ -94,9 +95,12 @@ function IndividualDashboard({ userEmail, firebaseUid }) {
         {/* Welcome Greeting Banner */}
         <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
           <div>
-            <h1 style={{ fontSize: 26, fontWeight: 800, color: '#17352D', letterSpacing: '-0.02em', margin: 0 }}>
-              Good day 👋
-            </h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <GlobalNavControls />
+              <h1 style={{ fontSize: 26, fontWeight: 800, color: '#17352D', letterSpacing: '-0.02em', margin: 0 }}>
+                Good day 👋
+              </h1>
+            </div>
             <p style={{ fontSize: 14, color: 'var(--muted)', margin: 0, fontWeight: 500 }}>
               Welcome back to CircularAid Command Center. Let's keep resources circulating.
             </p>

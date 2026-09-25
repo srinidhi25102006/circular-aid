@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import GlobalNavControls from './GlobalNavControls';
 import { motion } from 'framer-motion';
 
 function RecyclerDashboard({ userEmail, firebaseUid }) {
@@ -63,9 +64,12 @@ function RecyclerDashboard({ userEmail, firebaseUid }) {
         {/* Portal Header */}
         <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
           <div>
-            <h1 style={{ fontSize: 26, fontWeight: 800, color: '#17352D', margin: 0 }}>
-              🏭 Certified Recycling Facility Portal
-            </h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <GlobalNavControls />
+              <h1 style={{ fontSize: 26, fontWeight: 800, color: '#17352D', margin: 0 }}>
+                🏭 Certified Recycling Facility Portal
+              </h1>
+            </div>
             <p style={{ fontSize: 14, color: 'var(--muted)', margin: 0 }}>
               Facility intake queue, incoming e-waste verification, and digital recycling certificate issuance.
             </p>

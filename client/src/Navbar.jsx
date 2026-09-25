@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import GlobalNavControls from './GlobalNavControls';
 
 function Navbar({ userEmail, userRole, onSignOut, activeTab, onSelectTab }) {
   const roleName = userRole ? userRole.toUpperCase() : 'USER';
@@ -23,6 +24,9 @@ function Navbar({ userEmail, userRole, onSignOut, activeTab, onSelectTab }) {
   return (
     <header className="navbar">
       <div className="navbar-inner">
+        {/* Global Back / Forward Navigation Controls */}
+        <GlobalNavControls style={{ marginRight: 8 }} />
+
         {/* Brand Logo & Tagline */}
         <div 
           className="navbar-brand" 

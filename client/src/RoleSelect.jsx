@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import GlobalNavControls from './GlobalNavControls';
 
 function RoleSelect({ onSelectRole, onBack }) {
   const roles = [
@@ -43,9 +44,12 @@ function RoleSelect({ onSelectRole, onBack }) {
   return (
     <div className="page fade-in">
       <div className="container">
-        {onBack && (
-          <button className="back-link" onClick={onBack}>← Back to Welcome</button>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+          <GlobalNavControls />
+          {onBack && (
+            <button className="back-link" style={{ margin: 0 }} onClick={onBack}>← Back to Welcome</button>
+          )}
+        </div>
 
         <div className="card">
           <p className="title">Select Account Type</p>

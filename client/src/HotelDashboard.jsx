@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import ChatBox from './ChatBox';
+import GlobalNavControls from './GlobalNavControls';
 import OrganizationProfileModal from './OrganizationProfileModal';
 
 function HotelDashboard({ userEmail, firebaseUid, onSignOut }) {
@@ -128,9 +129,12 @@ function HotelDashboard({ userEmail, firebaseUid, onSignOut }) {
         {/* Portal Header */}
         <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
           <div>
-            <h1 style={{ fontSize: 26, fontWeight: 800, color: '#17352D', margin: 0 }}>
-              🏨 Hotel Food Rescue Hub
-            </h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <GlobalNavControls />
+              <h1 style={{ fontSize: 26, fontWeight: 800, color: '#17352D', margin: 0 }}>
+                🏨 Hotel Food Rescue Hub
+              </h1>
+            </div>
             <p style={{ fontSize: 14, color: 'var(--muted)', margin: 0 }}>
               Post surplus food, coordinate volunteer pickups, and eliminate kitchen waste.
             </p>
