@@ -23,6 +23,7 @@ model User {
   acceptedDonations      FoodDonation[]          @relation("NgoFoodDonations")
   givenRatings           Rating[]                @relation("NgoRatings")
   receivedRatings        Rating[]                @relation("HotelRatings")
+  givenReviews           RecyclingCenterReview[]
   notifications          Notification[]
 }
 
@@ -78,11 +79,16 @@ model RecyclingCenterProfile {
   address       String
   latitude      Float?
   longitude     Float?
-  licenseNumber String
+  licenseNumber String?
+  documentUrl   String?
+  operatingHours String?
+  description   String?
   specialties   String   @default("[]") // JSON string in SQLite
+  adminNotes    String?
   createdAt     DateTime @default(now())
 
-  devices Device[]
+  devices         Device[]
+  receivedReviews RecyclingCenterReview[]
 }
 
 model Device {
@@ -91,16 +97,32 @@ model Device {
   user                       User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
   deviceType                 String
   estimatedCondition         String
+  damageEvidence             String?                 // JSON string of specific visual cues
   visibleComponents          String?                 // JSON string in SQLite
   hazardFlags                String?                 // JSON string in SQLite
   confidenceScore            String?
   recyclableMaterialEstimate String?
   recyclingCenterId          String?
   recyclingCenter            RecyclingCenterProfile? @relation(fields: [recyclingCenterId], references: [id], onDelete: SetNull)
-  status                     String                  @default("pending")
-  pickupMethod               String
+  status                     String                  @default("pending") // pending | scheduled | received | completed | rejected
+  pickupMethod               String?
   proofPhotoUrl              String?
   createdAt                  DateTime                @default(now())
+
+  review RecyclingCenterReview?
+}
+
+model RecyclingCenterReview {
+  id                String                 @id @default(uuid())
+  deviceId          String                 @unique // Enforces exactly 1 review per completed transaction
+  device            Device                 @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  userId            String
+  user              User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recyclingCenterId String
+  recyclingCenter   RecyclingCenterProfile @relation(fields: [recyclingCenterId], references: [id], onDelete: Cascade)
+  stars             Int
+  comment           String?
+  createdAt         DateTime               @default(now())
 }
 
 model FoodDonation {
@@ -166,3 +188,4 @@ model Rating {
   comment     String?
   createdAt   DateTime     @default(now())
 }
+

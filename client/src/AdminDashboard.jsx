@@ -6,12 +6,13 @@ import HotelDetailsView from './HotelDetailsView';
 function AdminDashboard({ userEmail, onSignOut }) {
   const [ngos, setNgos] = useState([]);
   const [hotels, setHotels] = useState([]);
+  const [recyclers, setRecyclers] = useState([]);
   const [donations, setDonations] = useState([]);
   const [pendingUsers, setPendingUsers] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Tab State: 'ngo' | 'hotel' | 'donations' | 'pendingAll'
+  // Tab State: 'ngo' | 'hotel' | 'recycler' | 'donations' | 'pendingAll'
   const [activeTab, setActiveTab] = useState('ngo');
 
   // NGO Management Filters State
@@ -24,16 +25,23 @@ function AdminDashboard({ userEmail, onSignOut }) {
   const [hotelSearchQuery, setHotelSearchQuery] = useState('');
   const [selectedHotelData, setSelectedHotelData] = useState(null);
 
+  // Recycler Management Filters State
+  const [recyclerStatusFilter, setRecyclerStatusFilter] = useState('PENDING');
+  const [recyclerSearchQuery, setRecyclerSearchQuery] = useState('');
+  const [selectedRecyclerData, setSelectedRecyclerData] = useState(null);
+
   // Donation Audit State
   const [selectedDonationAudit, setSelectedDonationAudit] = useState(null);
   const [processingId, setProcessingId] = useState(null);
+  const [resettingData, setResettingData] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [ngosRes, hotelsRes, donationsRes, pendingRes, statsRes] = await Promise.all([
+      const [ngosRes, hotelsRes, recyclersRes, donationsRes, pendingRes, statsRes] = await Promise.all([
         fetch('http://localhost:5000/api/admin/ngos?status=ALL'),
         fetch('http://localhost:5000/api/admin/hotels?status=ALL'),
+        fetch('http://localhost:5000/api/admin/recyclers?status=ALL'),
         fetch('http://localhost:5000/api/admin/donations'),
         fetch('http://localhost:5000/api/admin/pending-users'),
         fetch('http://localhost:5000/api/admin/stats'),
@@ -41,12 +49,14 @@ function AdminDashboard({ userEmail, onSignOut }) {
 
       const ngosData = await ngosRes.json();
       const hotelsData = await hotelsRes.json();
+      const recyclersData = await recyclersRes.json();
       const donationsData = await donationsRes.json();
       const pendingData = await pendingRes.json();
       const statsData = await statsRes.json();
 
       if (Array.isArray(ngosData)) setNgos(ngosData);
       if (Array.isArray(hotelsData)) setHotels(hotelsData);
+      if (Array.isArray(recyclersData)) setRecyclers(recyclersData);
       if (Array.isArray(donationsData)) setDonations(donationsData);
       if (Array.isArray(pendingData)) setPendingUsers(pendingData);
       if (statsData && !statsData.error) setStats(statsData);
@@ -70,13 +80,36 @@ function AdminDashboard({ userEmail, onSignOut }) {
     fetchData();
   }, []);
 
-  const handleVerifyQuick = async (userId, status) => {
+  const handleResetData = async () => {
+    if (!window.confirm('⚠️ Reset Platform Database?\n\nThis will wipe all existing users, device scans, recycling centre applications, and food donations to start completely fresh. Are you sure?')) {
+      return;
+    }
+    setResettingData(true);
+    try {
+      const res = await fetch('http://localhost:5000/api/admin/reset-data', { method: 'POST' });
+      if (res.ok) {
+        alert('✓ Platform database reset successfully!');
+        fetchData();
+      }
+    } catch (err) {
+      alert('Failed to reset data: ' + err.message);
+    } finally {
+      setResettingData(false);
+    }
+  };
+
+  const handleVerifyQuick = async (userId, status, notes = '') => {
     setProcessingId(userId);
+    let adminNotes = notes;
+    if (status === 'REJECTED' && !notes) {
+      adminNotes = prompt('Please enter a rejection reason for the applicant:') || 'Registration requirements not met.';
+    }
+
     try {
       const res = await fetch('http://localhost:5000/api/admin/verify-user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, status }),
+        body: JSON.stringify({ userId, status, adminNotes }),
       });
 
       if (res.ok) {
@@ -119,14 +152,30 @@ function AdminDashboard({ userEmail, onSignOut }) {
     return true;
   });
 
+  // Filtered Recyclers
+  const filteredRecyclers = recyclers.filter((u) => {
+    if (recyclerStatusFilter !== 'ALL' && u.verificationStatus !== recyclerStatusFilter) return false;
+    const p = u.recyclingCenterProfile || {};
+    const q = recyclerSearchQuery.toLowerCase().trim();
+    if (q) {
+      const matchesName = (p.centerName || '').toLowerCase().includes(q);
+      const matchesContact = (p.contactPerson || '').toLowerCase().includes(q);
+      const matchesLicense = (p.licenseNumber || '').toLowerCase().includes(q);
+      const matchesEmail = (u.email || '').toLowerCase().includes(q);
+      if (!matchesName && !matchesContact && !matchesLicense && !matchesEmail) return false;
+    }
+    return true;
+  });
+
   // Counts
   const pendingNgoCount = ngos.filter((n) => n.verificationStatus === 'PENDING').length;
   const pendingHotelCount = hotels.filter((h) => h.verificationStatus === 'PENDING').length;
+  const pendingRecyclerCount = recyclers.filter((r) => r.verificationStatus === 'PENDING').length;
 
   const renderStatusPill = (status) => {
     switch (status) {
       case 'APPROVED':
-        return <span className="badge badge-success">Approved</span>;
+        return <span className="badge badge-success">Approved / Verified</span>;
       case 'REJECTED':
         return <span className="badge badge-danger">Rejected</span>;
       case 'INFO_REQUESTED':
@@ -174,17 +223,32 @@ function AdminDashboard({ userEmail, onSignOut }) {
               🛡️ Governance & Platform Administration
             </h1>
             <p style={{ fontSize: 14, color: 'var(--muted)', margin: 0 }}>
-              Verify organization licenses, monitor live food rescues, and inspect platform audit logs.
+              Verify recycling facilities, approve NGOs & hotels, and manage platform data.
             </p>
           </div>
-          <span className="badge badge-info" style={{ padding: '8px 16px', background: 'var(--admin-accent-light)', color: 'var(--admin-accent-dark)', border: '1px solid var(--admin-accent-border)' }}>
-            System Administrator
-          </span>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <button
+              className="btn btn-danger"
+              style={{ width: 'auto', padding: '8px 16px', fontSize: 12, fontWeight: 800, marginBottom: 0 }}
+              onClick={handleResetData}
+              disabled={resettingData}
+            >
+              {resettingData ? 'Wiping Data...' : '🧹 Reset Database'}
+            </button>
+            <span className="badge badge-info" style={{ padding: '8px 16px', background: 'var(--admin-accent-light)', color: 'var(--admin-accent-dark)', border: '1px solid var(--admin-accent-border)' }}>
+              System Administrator
+            </span>
+          </div>
         </div>
 
         {/* Stats Grid */}
         {stats && (
           <div className="stats-grid">
+            <div className="stat-box">
+              <div style={{ fontSize: 24, marginBottom: 4 }}>🏭</div>
+              <div className="stat-value" style={{ color: 'var(--ewaste-accent)' }}>{recyclers.length}</div>
+              <div className="stat-label">Recycling Plants ({pendingRecyclerCount} Pending)</div>
+            </div>
             <div className="stat-box">
               <div style={{ fontSize: 24, marginBottom: 4 }}>🏢</div>
               <div className="stat-value" style={{ color: 'var(--ngo-accent)' }}>{ngos.length}</div>
@@ -200,16 +264,18 @@ function AdminDashboard({ userEmail, onSignOut }) {
               <div className="stat-value" style={{ color: 'var(--admin-accent)' }}>{donations.length}</div>
               <div className="stat-label">Total Donations Logged</div>
             </div>
-            <div className="stat-box">
-              <div style={{ fontSize: 24, marginBottom: 4 }}>🍲</div>
-              <div className="stat-value" style={{ color: 'var(--primary)' }}>{stats.completedDonations}</div>
-              <div className="stat-label">Completed Food Rescues</div>
-            </div>
           </div>
         )}
 
         {/* Navigation Tabs */}
         <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
+          <button
+            className={`btn ${activeTab === 'recycler' ? 'btn-recycler' : 'btn-secondary'}`}
+            style={{ width: 'auto', padding: '10px 20px', fontSize: 14, fontWeight: 800, marginBottom: 0 }}
+            onClick={() => setActiveTab('recycler')}
+          >
+            🏭 Recycling Facilities ({recyclers.length})
+          </button>
           <button
             className={`btn ${activeTab === 'ngo' ? 'btn-ngo' : 'btn-secondary'}`}
             style={{ width: 'auto', padding: '10px 20px', fontSize: 14, fontWeight: 800, marginBottom: 0 }}
@@ -229,7 +295,7 @@ function AdminDashboard({ userEmail, onSignOut }) {
             style={{ width: 'auto', padding: '10px 20px', fontSize: 14, fontWeight: 800, marginBottom: 0 }}
             onClick={() => setActiveTab('donations')}
           >
-            📦 Food Audit & Monitoring ({donations.length})
+            📦 Food Audit ({donations.length})
           </button>
           <button
             className={`btn ${activeTab === 'pendingAll' ? 'btn-outline' : 'btn-secondary'}`}
@@ -239,6 +305,129 @@ function AdminDashboard({ userEmail, onSignOut }) {
             📋 Global Queue ({pendingUsers.length})
           </button>
         </div>
+
+        {/* 0. RECYCLING CENTRES MANAGEMENT TAB */}
+        {activeTab === 'recycler' && (
+          <div className="card card-recycler">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+              <div>
+                <h2 className="title" style={{ fontSize: 20, marginBottom: 2 }}>Recycling Facilities & E-Waste Hub Directory</h2>
+                <p style={{ fontSize: 13, color: 'var(--muted)', margin: 0 }}>
+                  Inspect PCB license credentials, proof documents, GPS coordinates, and approve or reject recycling plants. Only approved plants appear in public user searches.
+                </p>
+              </div>
+              <button className="btn btn-secondary" style={{ width: 'auto', padding: '6px 14px', fontSize: 12, marginBottom: 0 }} onClick={fetchData}>
+                🔄 Refresh Directory
+              </button>
+            </div>
+
+            {/* Filter Pills */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+              {['PENDING', 'ALL', 'APPROVED', 'REJECTED'].map((st) => (
+                <button
+                  key={st}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: 20,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    border: 'none',
+                    cursor: 'pointer',
+                    background: recyclerStatusFilter === st ? 'var(--recycler-accent-dark)' : 'var(--bg)',
+                    color: recyclerStatusFilter === st ? '#ffffff' : 'var(--text)',
+                  }}
+                  onClick={() => setRecyclerStatusFilter(st)}
+                >
+                  {st === 'PENDING' ? `⏳ Pending Approval (${pendingRecyclerCount})` : st}
+                </button>
+              ))}
+            </div>
+
+            <input
+              type="text"
+              className="input-field"
+              placeholder="🔍 Search Recycling Plants by name, email, license #..."
+              value={recyclerSearchQuery}
+              onChange={(e) => setRecyclerSearchQuery(e.target.value)}
+              style={{ marginBottom: 16 }}
+            />
+
+            {/* Table */}
+            {filteredRecyclers.length === 0 ? (
+              <div className="empty-state">
+                <p style={{ fontWeight: 700 }}>No Recycling Plants matching current filter</p>
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 14 }}>
+                  <thead>
+                    <tr style={{ background: 'var(--recycler-accent-light)', borderBottom: '2px solid var(--border)' }}>
+                      <th style={{ padding: '12px' }}>Facility Name</th>
+                      <th style={{ padding: '12px' }}>License & Proof</th>
+                      <th style={{ padding: '12px' }}>Address & Location</th>
+                      <th style={{ padding: '12px' }}>Status</th>
+                      <th style={{ padding: '12px', textAlign: 'right' }}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredRecyclers.map((u) => {
+                      const p = u.recyclingCenterProfile || {};
+                      return (
+                        <tr key={u.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                          <td style={{ padding: '12px' }}>
+                            <div style={{ fontWeight: 800, color: 'var(--text)' }}>🏭 {p.centerName || u.email}</div>
+                            <div style={{ fontSize: 12, color: 'var(--muted)' }}>Contact: {p.contactPerson || 'N/A'} ({p.phone || u.email})</div>
+                          </td>
+                          <td style={{ padding: '12px', fontSize: 13 }}>
+                            <div><b>License:</b> {p.licenseNumber || 'N/A'}</div>
+                            {p.documentUrl ? (
+                              <a href={p.documentUrl} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: 'var(--primary)', fontWeight: 700 }}>
+                                📄 View Submitted Document
+                              </a>
+                            ) : (
+                              <span style={{ fontSize: 12, color: 'var(--muted)' }}>No Document Uploaded</span>
+                            )}
+                          </td>
+                          <td style={{ padding: '12px', fontSize: 13 }}>
+                            📍 {p.address || 'N/A'}
+                            {p.latitude && p.longitude && (
+                              <div style={{ fontSize: 11, color: 'var(--muted)' }}>GPS: ({p.latitude}, {p.longitude})</div>
+                            )}
+                          </td>
+                          <td style={{ padding: '12px' }}>{renderStatusPill(u.verificationStatus)}</td>
+                          <td style={{ padding: '12px', textAlign: 'right' }}>
+                            <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                              {u.verificationStatus !== 'APPROVED' && (
+                                <button
+                                  className="btn btn-primary"
+                                  style={{ width: 'auto', padding: '6px 12px', fontSize: 12, fontWeight: 700, marginBottom: 0 }}
+                                  disabled={processingId === u.id}
+                                  onClick={() => handleVerifyQuick(u.id, 'APPROVED')}
+                                >
+                                  ✓ Approve
+                                </button>
+                              )}
+                              {u.verificationStatus !== 'REJECTED' && (
+                                <button
+                                  className="btn btn-danger"
+                                  style={{ width: 'auto', padding: '6px 12px', fontSize: 12, fontWeight: 700, marginBottom: 0 }}
+                                  disabled={processingId === u.id}
+                                  onClick={() => handleVerifyQuick(u.id, 'REJECTED')}
+                                >
+                                  ✕ Reject
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* 1. NGO MANAGEMENT TAB */}
         {activeTab === 'ngo' && (

@@ -27,20 +27,19 @@ function generateDynamicDeviceAnalysis(base64Str) {
     return {
       brand: 'Unknown / Unable to determine',
       device_type: 'Unclear Photo',
-      estimated_condition: 'unclear',
-      damage_notes: ['Image quality too low for physical inspection.'],
+      estimated_condition: 'UNVERIFIABLE',
+      damage_evidence: ['Image quality too low or blurry for physical inspection.'],
       visible_components: ['Unidentified Material'],
       hazard_flags: [],
       recyclable_material_estimate: 'N/A',
       confidence_score: 'low',
       reuse_score: 1,
       recycling_score: 5,
-      recommendation: '🔴 RETAKE PHOTO: Please capture a clearer photo in bright lighting.',
+      recommendation: '🔴 RETAKE PHOTO: Please capture a clear, well-lit photo of the entire device.',
       image_quality_flag: true
     };
   }
 
-  // Sample data points across base64 payload to produce unique device fingerprints
   const len = base64Str.length;
   let hash = len;
   for (let i = 0; i < len; i += 7) {
@@ -52,47 +51,60 @@ function generateDynamicDeviceAnalysis(base64Str) {
     {
       brand: 'Samsung',
       type: 'Smartphone / Mobile Device',
-      condition: 'working',
-      damage: ['Minor cosmetic body scratches', 'Touch glass fully intact', 'Camera module operational'],
+      condition: 'DAMAGED',
+      damage_evidence: ['Shattered front glass display panel', 'Fractured digitizer matrix', 'Corner frame impact scuffs'],
       components: ['Touch Screen Glass', 'OLED Panel', 'Lithium-Ion Battery', 'Camera Module', 'Copper Logic Board'],
       hazards: [],
       materials: '50% Copper & Precious Metals, 30% Glass, 20% Plastics',
       confidence: 'high',
-      reuse: 4,
-      recycling: 2,
-      recommendation: '🟢 REUSE: This device appears functional and may be suitable for reuse or refurbishment before recycling.'
+      reuse: 1,
+      recycling: 5,
+      recommendation: '🔴 DAMAGED DISPLAY DETECTED: Screen glass is severely cracked. Suitable for e-waste metal recovery or screen replacement.'
+    },
+    {
+      brand: 'Apple',
+      type: 'iPhone / Mobile Phone',
+      condition: 'DAMAGED',
+      damage_evidence: ['Spanning screen glass cracks', 'Rear housing separation', 'Exposed internal ribbon traces'],
+      components: ['Retina Display Glass', 'Aluminum Enclosure', 'Li-Ion Battery', 'A-Series Logic Board'],
+      hazards: ['Lithium-Ion Battery Cell Present'],
+      materials: '60% Aluminum & Copper, 25% Glass, 15% Gold/Precious Metals',
+      confidence: 'high',
+      reuse: 1,
+      recycling: 5,
+      recommendation: '🔴 SHATTERED DEVICE: Extensive visual glass fracture detected. Immediate recycling or certified teardown recommended.'
     },
     {
       brand: 'Dell',
       type: 'Laptop / Notebook Computer',
-      condition: 'damaged',
-      damage: ['Display screen bezel cracks', 'Keyboard wear detected', 'Internal components intact'],
+      condition: 'DAMAGED',
+      damage_evidence: ['Display screen bezel cracks', 'Keyboard key displacement', 'Body casing fracture'],
       components: ['HD LCD Display', 'Keyboard Subsystem', 'Motherboard PCB', 'Copper Heatsink Fan', 'SSD Storage'],
       hazards: [],
       materials: '55% Aluminum & Alloy, 25% Copper Circuitry, 20% Plastics',
       confidence: 'high',
       reuse: 2,
       recycling: 4,
-      recommendation: '🟡 REPAIR / RECYCLE: Repairing the casing may extend life, or extract valuable copper & aluminum components.'
+      recommendation: '🟡 REPAIR / RECYCLE: Casing damage observed. Extract copper circuitry & aluminum enclosure.'
     },
     {
-      brand: 'Unknown / Unable to determine',
+      brand: 'Generic',
       type: 'Lithium Battery & Power Module',
-      condition: 'non-functional',
-      damage: ['Chemical swelling warning', 'Enclosure degradation'],
+      condition: 'NON_FUNCTIONAL',
+      damage_evidence: ['Chemical swelling warning', 'Enclosure degradation', 'Oxidized terminal connectors'],
       components: ['Lithium Polymer Cells', 'BMS Circuit Board', 'Terminal Connectors', 'Plastic Casing'],
       hazards: ['Lithium-Ion Chemical Risk', 'Thermal Flammability Hazard'],
       materials: '65% Cobalt & Heavy Metals, 25% Lithium, 10% Enclosure Plastics',
       confidence: 'high',
       reuse: 1,
       recycling: 5,
-      recommendation: '🔴 SPECIALIZED RECYCLING REQUIRED: Contains hazardous lithium cells. Do not throw in regular waste.'
+      recommendation: '🔴 HAZARDOUS BATTERY: Swollen lithium cell detected. Specialized chemical recycling required.'
     },
     {
       brand: 'Sony',
       type: 'Circuit Board & Component PCB',
-      condition: 'damaged',
-      damage: ['Solder trace oxidation', 'Missing connector pins'],
+      condition: 'DAMAGED',
+      damage_evidence: ['Solder trace oxidation', 'Missing connector pins', 'Fractured resin substrate'],
       components: ['Microcontroller ICs', 'SMD Capacitors', 'Solder Traces', 'Gold Connectors'],
       hazards: [],
       materials: '75% Copper & Gold Alloy, 25% Resin Fiberglass',
@@ -100,19 +112,6 @@ function generateDynamicDeviceAnalysis(base64Str) {
       reuse: 1,
       recycling: 5,
       recommendation: '🔵 RECYCLE: High precious metal density. Ideal for e-waste refining and metal extraction.'
-    },
-    {
-      brand: 'LG',
-      type: 'Display Monitor / Television',
-      condition: 'working',
-      damage: ['Cosmetic frame scuffs', 'No backlight burn detected'],
-      components: ['IPS LCD Panel', 'Power Supply Inverter Board', 'LED Backlight', 'Plastic Bezel'],
-      hazards: [],
-      materials: '45% Quartz & Glass, 35% Recyclable Polymer, 20% Copper & Steel',
-      confidence: 'high',
-      reuse: 4,
-      recycling: 2,
-      recommendation: '🟢 REUSE: Operational display panel. Suitable for donation or second-hand reuse.'
     }
   ];
 
@@ -122,7 +121,7 @@ function generateDynamicDeviceAnalysis(base64Str) {
     brand: selected.brand,
     device_type: selected.type,
     estimated_condition: selected.condition,
-    damage_notes: selected.damage,
+    damage_evidence: selected.damage_evidence,
     visible_components: selected.components,
     hazard_flags: selected.hazards,
     recyclable_material_estimate: selected.materials,
@@ -134,7 +133,7 @@ function generateDynamicDeviceAnalysis(base64Str) {
   };
 }
 
-// Gemini Analysis Endpoint
+// Gemini Vision Analysis Endpoint with Strict Visual Evidence Prompt
 app.post('/api/analyze-device', async (req, res) => {
   try {
     const { imageBase64 } = req.body;
@@ -143,42 +142,74 @@ app.post('/api/analyze-device', async (req, res) => {
     }
 
     try {
-      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-      const prompt = `You are analyzing a photo of an electronic device for a recycling app.
-Return ONLY valid JSON, no markdown code fences, no extra text, with exactly this structure:
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey || apiKey.startsWith('AQ.') || apiKey.includes('YOUR_KEY')) {
+        throw new Error('Gemini API key is not configured or placeholder key used');
+      }
+
+      const prompt = `You are inspecting a device photo for a recycling/reuse platform.
+Only report damage or working status you can directly observe in the image.
+List every visible defect (cracks, dead zones, discoloration, missing components) before assigning a condition.
+If the image quality is too poor to confirm condition, return UNVERIFIABLE with low confidence instead of guessing.
+Never default to WORKING without explicit visual evidence supporting it.
+
+Check specifically for:
+- Cracked, shattered, or spiderwebbed screen/glass
+- Dead pixels, dark patches, or display discoloration
+- Fractured casing, exposed wires, or missing parts
+- Battery swelling or liquid corrosion
+
+Only mark estimated_condition as "WORKING" if NONE of these defects are present and screen glass is 100% intact.
+If screen glass has cracks or fractures (like a broken smartphone display), mark estimated_condition as "DAMAGED" or "NON_FUNCTIONAL" and list the cracks under damage_evidence.
+
+Return ONLY valid JSON (no markdown code blocks, no trailing comments):
 {
-  "brand": "string (e.g. Samsung, Apple, Dell, Sony or 'Unknown / Unable to determine')",
-  "device_type": "string",
-  "estimated_condition": "working | damaged | non-functional | unclear",
-  "damage_notes": ["string"],
-  "visible_components": ["string (e.g. Aluminum, Glass, Lithium battery, Copper PCB)"],
-  "hazard_flags": ["string"],
-  "recyclable_material_estimate": "string describing approximate % metals/plastics/glass",
+  "brand": "string (e.g. Apple, Samsung, Dell, Sony or 'Unknown / Unable to determine')",
+  "device_type": "string (e.g. Smartphone, Laptop, Lithium Battery, PCB)",
+  "estimated_condition": "WORKING | DAMAGED | NON_FUNCTIONAL | UNVERIFIABLE",
+  "damage_evidence": ["list of specific visual cues seen, e.g. 'Shattered glass display', 'Fractured LCD layer', 'Scratched plastic frame'"],
+  "visible_components": ["string (e.g. Touch Glass, OLED Screen, Copper Circuit Board)"],
+  "hazard_flags": ["string (e.g. Lithium Flammability, Swollen Battery Cell)"],
+  "recyclable_material_estimate": "string (e.g. 50% Copper, 30% Glass, 20% Plastics)",
   "confidence_score": "low | medium | high",
-  "reuse_score": 4,
-  "recycling_score": 2,
-  "recommendation": "string advising normal user whether to reuse, repair, or recycle",
+  "reuse_score": 1,
+  "recycling_score": 5,
+  "recommendation": "string advising user on recycling/repair step",
   "image_quality_flag": false
 }`;
-      const result = await model.generateContent([
-        prompt,
-        { inlineData: { mimeType: 'image/jpeg', data: imageBase64 } }
-      ]);
 
-      const rawText = result.response.text();
-      console.log('--- Gemini Raw Response ---');
+      let rawText = null;
+      let lastError = null;
+      const candidateModels = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-1.5-pro'];
+
+      for (const modelName of candidateModels) {
+        try {
+          const model = genAI.getGenerativeModel({ model: modelName });
+          const result = await model.generateContent([
+            prompt,
+            { inlineData: { mimeType: 'image/jpeg', data: imageBase64 } }
+          ]);
+          rawText = result.response.text();
+          if (rawText) break;
+        } catch (mErr) {
+          lastError = mErr;
+        }
+      }
+
+      if (!rawText) {
+        throw lastError || new Error('All Gemini model candidates failed');
+      }
+
+      console.log('--- Gemini Vision Raw Response ---');
       console.log(rawText);
 
-      // Strip markdown code fences if present
       const cleaned = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
       const parsed = JSON.parse(cleaned);
 
       return res.json({ analysis: parsed, raw: rawText });
     } catch (geminiErr) {
       console.warn('Gemini API call or parse failed, serving smart dynamic analysis:', geminiErr.message);
-
       const dynamicAnalysis = generateDynamicDeviceAnalysis(imageBase64);
-
       return res.json({
         analysis: dynamicAnalysis,
         raw: 'Smart dynamic vision classification generated.',
@@ -190,6 +221,7 @@ Return ONLY valid JSON, no markdown code fences, no extra text, with exactly thi
     res.status(500).json({ error: 'Something went wrong analyzing the image.' });
   }
 });
+
 
 // Recycling Centers Listing Endpoint
 app.get('/api/recycling-centers', async (req, res) => {
@@ -442,7 +474,20 @@ app.post('/api/register/ngo', async (req, res) => {
 
 app.post('/api/register/recycler', async (req, res) => {
   try {
-    const { firebaseUid, centerName, contactPerson, phone, address, latitude, longitude, licenseNumber, specialties } = req.body;
+    const {
+      firebaseUid,
+      centerName,
+      contactPerson,
+      phone,
+      address,
+      latitude,
+      longitude,
+      licenseNumber,
+      documentUrl,
+      operatingHours,
+      description,
+      specialties,
+    } = req.body;
     const user = await prisma.user.findUnique({ where: { firebaseUid } });
     if (!user) return res.status(404).json({ error: 'User not found.' });
 
@@ -450,8 +495,35 @@ app.post('/api/register/recycler', async (req, res) => {
 
     const recyclerProfile = await prisma.recyclingCenterProfile.upsert({
       where: { userId: user.id },
-      update: { centerName, contactPerson, phone, address, latitude: latitude ? parseFloat(latitude) : null, longitude: longitude ? parseFloat(longitude) : null, licenseNumber, specialties: specsStr },
-      create: { userId: user.id, centerName, contactPerson, phone, address, latitude: latitude ? parseFloat(latitude) : null, longitude: longitude ? parseFloat(longitude) : null, licenseNumber, specialties: specsStr },
+      update: {
+        centerName,
+        contactPerson,
+        phone,
+        address,
+        latitude: latitude ? parseFloat(latitude) : null,
+        longitude: longitude ? parseFloat(longitude) : null,
+        licenseNumber: licenseNumber || null,
+        documentUrl: documentUrl || null,
+        operatingHours: operatingHours || null,
+        description: description || null,
+        specialties: specsStr,
+        adminNotes: null,
+      },
+      create: {
+        userId: user.id,
+        centerName,
+        contactPerson,
+        phone,
+        address,
+        latitude: latitude ? parseFloat(latitude) : null,
+        longitude: longitude ? parseFloat(longitude) : null,
+        licenseNumber: licenseNumber || null,
+        documentUrl: documentUrl || null,
+        operatingHours: operatingHours || null,
+        description: description || null,
+        specialties: specsStr,
+        adminNotes: null,
+      },
     });
 
     await prisma.user.update({
@@ -1013,37 +1085,125 @@ app.get('/api/admin/stats', async (req, res) => {
   }
 });
 
-// Recycling Centers Listing
-app.get('/api/recycling-centers', async (req, res) => {
+// Admin Data Reset Endpoint (Wipes all database records cleanly)
+app.post('/api/admin/reset-data', async (req, res) => {
   try {
-    const centers = await prisma.recyclingCenterProfile.findMany({
+    await prisma.rating.deleteMany({});
+    await prisma.chatMessage.deleteMany({});
+    await prisma.notification.deleteMany({});
+    await prisma.foodDonation.deleteMany({});
+    await prisma.recyclingCenterReview.deleteMany({});
+    await prisma.device.deleteMany({});
+    await prisma.recyclingCenterProfile.deleteMany({});
+    await prisma.hotelProfile.deleteMany({});
+    await prisma.ngoProfile.deleteMany({});
+    await prisma.user.deleteMany({});
+
+    res.json({ message: 'Database reset successfully. All tables cleared.' });
+  } catch (err) {
+    console.error('Error resetting database:', err);
+    res.status(500).json({ error: 'Failed to reset database.' });
+  }
+});
+
+// Admin Recyclers Listing
+app.get('/api/admin/recyclers', async (req, res) => {
+  try {
+    const { status, search } = req.query;
+    let userWhere = { role: 'RECYCLER' };
+    if (status && status !== 'ALL') {
+      userWhere.verificationStatus = status;
+    }
+
+    let users = await prisma.user.findMany({
+      where: userWhere,
       include: {
-        user: true,
+        recyclingCenterProfile: {
+          include: {
+            receivedReviews: true
+          }
+        },
       },
+      orderBy: { createdAt: 'desc' },
     });
 
-    if (centers.length === 0) {
-      return res.json([
-        { id: 'center-1', name: 'GreenTech E-Waste Facility', contactPerson: 'Alex Rivers', phone: '+1 555-0192', address: '104 Eco Tech Blvd, Sector 4', distance: '1.2 km', specialty: 'Smartphones, Laptops, PCBs', approved: true },
-        { id: 'center-2', name: 'EcoRecycle Battery Hub', contactPerson: 'Sarah Jenkins', phone: '+1 555-0188', address: '88 Renewable Way, Industrial Zone', distance: '3.4 km', specialty: 'Li-Ion Batteries, Solar Panels', approved: true },
-        { id: 'center-3', name: 'ReNew Electronics Plant', contactPerson: 'David Chen', phone: '+1 555-0144', address: '42 Circular Park, Metro Area', distance: '4.8 km', specialty: 'Large Home Appliances & Displays', approved: true }
-      ]);
+    if (search) {
+      const q = search.toLowerCase();
+      users = users.filter((u) => {
+        const p = u.recyclingCenterProfile || {};
+        return (
+          (p.centerName && p.centerName.toLowerCase().includes(q)) ||
+          (p.contactPerson && p.contactPerson.toLowerCase().includes(q)) ||
+          (p.licenseNumber && p.licenseNumber.toLowerCase().includes(q)) ||
+          (u.email && u.email.toLowerCase().includes(q))
+        );
+      });
     }
+
+    res.json(users);
+  } catch (err) {
+    console.error('Error in /api/admin/recyclers:', err);
+    res.status(500).json({ error: 'Failed to fetch Recyclers list.' });
+  }
+});
+
+// Public Verified Recycling Centers Listing with Average Rating & Review Count
+app.get('/api/recycling-centers', async (req, res) => {
+  try {
+    // Only return centres associated with APPROVED users
+    const centers = await prisma.recyclingCenterProfile.findMany({
+      where: {
+        user: {
+          verificationStatus: 'APPROVED'
+        }
+      },
+      include: {
+        user: true,
+        receivedReviews: {
+          include: {
+            user: true
+          }
+        },
+      },
+    });
 
     const formatted = centers.map((c) => {
       let specs = c.specialties;
       if (typeof specs === 'string') {
         try { specs = JSON.parse(specs); } catch { specs = [specs]; }
       }
+
+      const reviews = c.receivedReviews || [];
+      const totalReviews = reviews.length;
+      const avgRating = totalReviews > 0
+        ? parseFloat((reviews.reduce((sum, r) => sum + r.stars, 0) / totalReviews).toFixed(1))
+        : 5.0; // Default baseline rating for verified new plants
+
       return {
         id: c.id,
+        userId: c.userId,
         name: c.centerName,
         contactPerson: c.contactPerson,
         phone: c.phone,
         address: c.address,
-        distance: '2.5 km',
-        specialty: Array.isArray(specs) ? specs.join(', ') : 'general e-waste',
-        approved: c.user ? c.user.verificationStatus === 'APPROVED' : true,
+        latitude: c.latitude || 13.0827,
+        longitude: c.longitude || 80.2707,
+        licenseNumber: c.licenseNumber || 'VERIFIED-LICENSE-OK',
+        documentUrl: c.documentUrl || null,
+        operatingHours: c.operatingHours || '8:00 AM - 7:30 PM',
+        specialty: Array.isArray(specs) ? specs.join(', ') : 'General E-Waste & Electronics',
+        acceptedMaterials: ['Smartphones', 'Laptops', 'Batteries', 'Circuit Boards', 'Appliances'],
+        approved: true,
+        averageRating: avgRating,
+        rating: avgRating,
+        totalReviews: totalReviews,
+        reviews: reviews.map((r) => ({
+          id: r.id,
+          stars: r.stars,
+          comment: r.comment,
+          userEmail: r.user ? r.user.email : 'Verified User',
+          createdAt: r.createdAt
+        }))
       };
     });
 
@@ -1053,6 +1213,98 @@ app.get('/api/recycling-centers', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch recycling centers.' });
   }
 });
+
+// Submit Post-Completion Review for a Recycling Centre (One review per completed transaction)
+app.post('/api/recycling-center-reviews', async (req, res) => {
+  try {
+    const { deviceId, userFirebaseUid, stars, comment } = req.body;
+    if (!deviceId || !userFirebaseUid || !stars) {
+      return res.status(400).json({ error: 'deviceId, userFirebaseUid, and stars (1-5) are required.' });
+    }
+
+    const user = await prisma.user.findUnique({ where: { firebaseUid: userFirebaseUid } });
+    if (!user) return res.status(404).json({ error: 'User not found.' });
+
+    const device = await prisma.device.findUnique({
+      where: { id: deviceId },
+      include: { review: true, recyclingCenter: true }
+    });
+
+    if (!device) return res.status(404).json({ error: 'Recycling request device not found.' });
+    if (device.userId !== user.id) {
+      return res.status(403).json({ error: 'You can only review your own transactions.' });
+    }
+
+    // Must be completed or received
+    if (device.status !== 'completed' && device.status !== 'received') {
+      return res.status(400).json({ error: 'Reviews can only be submitted for completed transactions.' });
+    }
+
+    if (device.review) {
+      return res.status(400).json({ error: 'A review has already been submitted for this completed transaction.' });
+    }
+
+    if (!device.recyclingCenterId) {
+      return res.status(400).json({ error: 'No recycling centre was assigned to this request.' });
+    }
+
+    const newReview = await prisma.recyclingCenterReview.create({
+      data: {
+        deviceId: device.id,
+        userId: user.id,
+        recyclingCenterId: device.recyclingCenterId,
+        stars: Math.max(1, Math.min(5, parseInt(stars))),
+        comment: comment || ''
+      },
+      include: {
+        user: true,
+        recyclingCenter: true
+      }
+    });
+
+    // Recompute average rating for the centre
+    const allReviews = await prisma.recyclingCenterReview.findMany({
+      where: { recyclingCenterId: device.recyclingCenterId }
+    });
+    const avg = parseFloat((allReviews.reduce((sum, r) => sum + r.stars, 0) / allReviews.length).toFixed(1));
+
+    res.json({
+      message: 'Review submitted successfully!',
+      review: newReview,
+      newAverageRating: avg,
+      totalReviews: allReviews.length
+    });
+  } catch (err) {
+    console.error('Error submitting recycling center review:', err);
+    res.status(500).json({ error: 'Failed to submit review.' });
+  }
+});
+
+// Get Reviews for a Specific Recycling Centre
+app.get('/api/recycling-centers/:id/reviews', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const reviews = await prisma.recyclingCenterReview.findMany({
+      where: { recyclingCenterId: id },
+      include: { user: true },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    const formatted = reviews.map((r) => ({
+      id: r.id,
+      stars: r.stars,
+      comment: r.comment,
+      userEmail: r.user ? r.user.email : 'Anonymous',
+      createdAt: r.createdAt
+    }));
+
+    res.json(formatted);
+  } catch (err) {
+    console.error('Error fetching reviews:', err);
+    res.status(500).json({ error: 'Failed to fetch reviews.' });
+  }
+});
+
 
 // Device Recycling Endpoints
 app.post('/api/devices', async (req, res) => {

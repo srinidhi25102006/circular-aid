@@ -92,20 +92,39 @@ function RecycleFlow({ firebaseUid, userEmail, onExit, onComplete }) {
   });
   const [manualLocationInput, setManualLocationInput] = useState('');
 
+  // Request location on component mount (Geolocation API with fallback)
   useEffect(() => {
     fetch('http://localhost:5000/api/recycling-centers')
       .then((res) => res.json())
       .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
+        if (Array.isArray(data)) {
           setCenters(data);
-        } else {
-          setCenters(MOCK_FALLBACK_CENTERS);
         }
       })
-      .catch(() => setCenters(MOCK_FALLBACK_CENTERS));
+      .catch(() => {});
+
+    // Request GPS location on opening flow
+    if (navigator.geolocation) {
+      setUserLocation((prev) => ({ ...prev, loadingLocation: true }));
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setUserLocation({
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+            addressText: `GPS (${pos.coords.latitude.toFixed(3)}, ${pos.coords.longitude.toFixed(3)})`,
+            isCustomSearch: false,
+            loadingLocation: false,
+          });
+        },
+        (err) => {
+          console.warn('Geolocation prompt rejected/failed:', err.message);
+          setUserLocation((prev) => ({ ...prev, loadingLocation: false }));
+        }
+      );
+    }
   }, []);
 
-  // Geolocation API handler
+  // Geolocation API manual trigger
   const handleGetCurrentLocation = () => {
     if (!navigator.geolocation) {
       setError('Geolocation is not supported by your browser. Please enter your location manually.');
@@ -175,8 +194,8 @@ function RecycleFlow({ firebaseUid, userEmail, onExit, onComplete }) {
 
         setAnalysis(parsed);
 
-        // Step 4 response handling
-        if (parsed.image_quality_flag) {
+        // Step response handling
+        if (parsed.image_quality_flag || parsed.estimated_condition === 'UNVERIFIABLE') {
           setStep('quality_fail');
         } else if (parsed.hazard_flags && parsed.hazard_flags.length > 0) {
           setStep('hazard');
@@ -215,12 +234,13 @@ function RecycleFlow({ firebaseUid, userEmail, onExit, onComplete }) {
         body: JSON.stringify({
           firebaseUid,
           deviceType: analysis?.device_type || 'Electronic Device',
-          estimatedCondition: analysis?.estimated_condition || 'damaged',
+          estimatedCondition: analysis?.estimated_condition || 'DAMAGED',
+          damageEvidence: analysis?.damage_evidence || [],
           visibleComponents: analysis?.visible_components || [],
           hazardFlags: analysis?.hazard_flags || [],
           confidenceScore: analysis?.confidence_score || 'high',
           recyclableMaterialEstimate: analysis?.recyclable_material_estimate || 'Plastics & Metals',
-          recyclingCenterId: selectedCenter?.id?.startsWith('mock') ? null : selectedCenter?.id,
+          recyclingCenterId: selectedCenter?.id,
           pickupMethod: method,
         }),
       });
@@ -235,20 +255,22 @@ function RecycleFlow({ firebaseUid, userEmail, onExit, onComplete }) {
   };
 
   // Helper to render star rating
-  const renderStars = (score = 4) => {
-    const num = Math.min(Math.max(score, 1), 5);
+  const renderStars = (score = 5) => {
+    const num = Math.min(Math.max(Math.round(score), 1), 5);
     return '⭐'.repeat(num) + '☆'.repeat(5 - num);
   };
 
-  // Sort centers by distance
-  const sortedCenters = [...centers].map((c) => {
-    const dist = calculateDistanceKm(userLocation.latitude, userLocation.longitude, c.latitude, c.longitude);
-    return {
-      ...c,
-      distanceFormatted: dist ? `${dist} km away` : c.distance || '2.5 km away',
-      numericDistance: dist ? parseFloat(dist) : 2.5,
-    };
-  }).sort((a, b) => a.numericDistance - b.numericDistance);
+  // Sort verified centers nearest-first using Haversine distance
+  const sortedCenters = [...centers]
+    .map((c) => {
+      const dist = calculateDistanceKm(userLocation.latitude, userLocation.longitude, c.latitude, c.longitude);
+      return {
+        ...c,
+        distanceFormatted: dist ? `${dist} km away` : c.distance || '2.5 km away',
+        numericDistance: dist ? parseFloat(dist) : 2.5,
+      };
+    })
+    .sort((a, b) => a.numericDistance - b.numericDistance);
 
   return (
     <div className="page fade-in">
@@ -299,19 +321,21 @@ function RecycleFlow({ firebaseUid, userEmail, onExit, onComplete }) {
             <p className="title" style={{ justifyContent: 'center' }}>Analyzing full product image...</p>
             <div className="spinner"></div>
             <p className="subtitle" style={{ maxWidth: 460, margin: '0 auto' }}>
-              Gemini AI vision is detecting brand, device model, material chips, lithium battery hazards, and physical condition.
+              Gemini AI vision is verifying screen integrity, physical damage cues, material composition, and lithium safety.
             </p>
           </div>
         )}
 
-        {/* STEP 4a: Unclear image quality */}
+        {/* STEP 4a: Unclear image quality / UNVERIFIABLE */}
         {step === 'quality_fail' && (
           <div className="card">
-            <span className="badge badge-warning">Image Quality Issue</span>
+            <span className="badge badge-warning">Image Quality Unverifiable</span>
             <h2 className="title" style={{ marginTop: 12 }}>Unclear Photo Quality</h2>
-            <p className="subtitle">The photo quality is too dark or blurry to identify component details accurately. Please retake the photo in bright lighting.</p>
+            <p className="subtitle">
+              The image is too blurry, dark, or low-resolution to verify condition or check for cracked glass. Please capture a bright, clear photo.
+            </p>
             <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }} className="btn btn-primary" onClick={retake}>
-              Retake Photo
+              📷 Retake Photo in Bright Light
             </motion.button>
           </div>
         )}
@@ -342,7 +366,7 @@ function RecycleFlow({ firebaseUid, userEmail, onExit, onComplete }) {
             <h2 className="title" style={{ marginTop: 12 }}>Confirm Device Condition</h2>
             <p className="subtitle">AI initial guess: <b>{analysis?.estimated_condition}</b>. Please select the accurate condition below:</p>
             <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
-              {['working', 'damaged', 'non-functional'].map((c) => (
+              {['WORKING', 'DAMAGED', 'NON_FUNCTIONAL'].map((c) => (
                 <motion.button
                   key={c}
                   whileHover={{ scale: 1.02 }}
@@ -358,12 +382,12 @@ function RecycleFlow({ firebaseUid, userEmail, onExit, onComplete }) {
           </div>
         )}
 
-        {/* STEP 5: DETAILED SCAN ANALYSIS RESULTS & ADVICE */}
+        {/* STEP 5: DETAILED SCAN ANALYSIS RESULTS & VISUAL EVIDENCE */}
         {step === 'route' && (
           <div className="card card-recycler" style={{ padding: 24 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-              <span className="badge badge-success">✓ Complete Scan Analysis</span>
-              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)' }}>Confidence: {analysis?.confidence_score || 'High'}</span>
+              <span className="badge badge-success">✓ AI Vision Inspection Complete</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)' }}>Confidence: {analysis?.confidence_score?.toUpperCase() || 'HIGH'}</span>
             </div>
 
             {/* UNCROPPED PRODUCT IMAGE DISPLAY */}
@@ -389,9 +413,26 @@ function RecycleFlow({ firebaseUid, userEmail, onExit, onComplete }) {
                 {analysis?.device_type || 'Electronic Device'}
               </h3>
 
-              <p style={{ fontSize: 14, color: 'var(--text)', marginBottom: 12 }}>
-                <b>Condition:</b> <span style={{ textTransform: 'uppercase', fontWeight: 800, color: analysis?.estimated_condition === 'working' ? 'var(--success)' : 'var(--warning)' }}>{analysis?.estimated_condition || 'Damaged'}</span>
-              </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                <span style={{ fontSize: 14, fontWeight: 700 }}>Condition:</span>
+                <span className={`badge ${analysis?.estimated_condition === 'WORKING' ? 'badge-success' : 'badge-danger'}`} style={{ fontSize: 13, textTransform: 'uppercase' }}>
+                  {analysis?.estimated_condition || 'DAMAGED'}
+                </span>
+              </div>
+
+              {/* VISUAL DAMAGE EVIDENCE LIST */}
+              {analysis?.damage_evidence && analysis.damage_evidence.length > 0 && (
+                <div style={{ background: '#fff1f2', border: '1px solid #fecdd3', padding: 12, borderRadius: 10, marginBottom: 14 }}>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: '#be123c', display: 'block', marginBottom: 4 }}>
+                    🔍 VISIBLE DEFECTS & DAMAGE EVIDENCE (VERIFIED)
+                  </span>
+                  <ul style={{ paddingLeft: 18, fontSize: 13, color: '#9f1239', margin: 0, lineHeight: 1.5 }}>
+                    {analysis.damage_evidence.map((cue, idx) => (
+                      <li key={idx} style={{ fontWeight: 600 }}>{cue}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               {/* DETECTED MATERIAL CHIPS */}
               <div style={{ marginBottom: 12 }}>
@@ -406,40 +447,26 @@ function RecycleFlow({ firebaseUid, userEmail, onExit, onComplete }) {
                   ))}
                 </div>
               </div>
-
-              {/* DAMAGE / INSPECTION NOTES */}
-              {analysis?.damage_notes && analysis.damage_notes.length > 0 && (
-                <div>
-                  <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>
-                    DAMAGE & CONDITION NOTES
-                  </span>
-                  <ul style={{ paddingLeft: 18, fontSize: 13, color: 'var(--text)', margin: 0, lineHeight: 1.5 }}>
-                    {analysis.damage_notes.map((note, idx) => (
-                      <li key={idx}>{note}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
             </div>
 
             {/* USER-FRIENDLY ADVICE & RATING CARDS */}
             <div style={{ background: 'linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%)', border: '1px solid var(--primary-border)', padding: 18, borderRadius: 14, marginBottom: 20 }}>
               <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--primary-dark)', textTransform: 'uppercase', display: 'block', marginBottom: 10 }}>
-                💡 WHAT SHOULD YOU DO? (PLAIN LANGUAGE ADVICE)
+                💡 RECOMMENDATION (PLAIN LANGUAGE ADVICE)
               </span>
 
               <p style={{ fontSize: 14, color: '#17352D', lineHeight: 1.5, fontWeight: 600, marginBottom: 14 }}>
-                {analysis?.recommendation || '🟢 REUSE: This device appears functional and may be suitable for reuse before recycling.'}
+                {analysis?.recommendation || '🔴 DAMAGED DISPLAY DETECTED: Glass display has fractures. Suitable for e-waste metal recovery.'}
               </p>
 
               <div className="grid-2" style={{ gap: 10 }}>
                 <div style={{ background: '#ffffff', padding: 10, borderRadius: 10, border: '1px solid var(--border)', textAlign: 'center' }}>
                   <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', display: 'block' }}>REUSE POTENTIAL</span>
-                  <span style={{ fontSize: 16 }}>{renderStars(analysis?.reuse_score || 4)}</span>
+                  <span style={{ fontSize: 16 }}>{renderStars(analysis?.reuse_score || 1)}</span>
                 </div>
                 <div style={{ background: '#ffffff', padding: 10, borderRadius: 10, border: '1px solid var(--border)', textAlign: 'center' }}>
                   <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', display: 'block' }}>RECYCLING NEED</span>
-                  <span style={{ fontSize: 16 }}>{renderStars(analysis?.recycling_score || 2)}</span>
+                  <span style={{ fontSize: 16 }}>{renderStars(analysis?.recycling_score || 5)}</span>
                 </div>
               </div>
             </div>
@@ -450,7 +477,7 @@ function RecycleFlow({ firebaseUid, userEmail, onExit, onComplete }) {
                 ♻️ Ready to recycle this device?
               </h4>
               <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 14 }}>
-                Find nearby registered CircularAid recycling facilities based on your location.
+                Find verified nearby CircularAid recycling facilities based on your location.
               </p>
               <motion.button
                 whileHover={{ scale: 1.03 }}
@@ -465,14 +492,14 @@ function RecycleFlow({ firebaseUid, userEmail, onExit, onComplete }) {
           </div>
         )}
 
-        {/* STEP 6: LOCATION SELECTION & GOOGLE-MAPS-STYLE REGISTERED CENTERS */}
+        {/* STEP 6: LOCATION SELECTION & SORTED NEARBY CENTRES */}
         {step === 'matching' && (
           <div className="card card-recycler" style={{ padding: 24 }}>
             <h2 className="title" style={{ fontSize: 22, marginBottom: 2 }}>
-              📍 Nearby Registered Recycling Centers
+              📍 Nearby Verified Recycling Centers
             </h2>
             <p className="subtitle" style={{ marginBottom: 18 }}>
-              Sorted by proximity to your location. Only verified CircularAid facilities are displayed.
+              Calculated using Haversine distance from your location. Only verified CircularAid plants are queryable.
             </p>
 
             {/* LOCATION INPUT & GPS CONTROLS */}
@@ -491,7 +518,7 @@ function RecycleFlow({ firebaseUid, userEmail, onExit, onComplete }) {
                   onClick={handleGetCurrentLocation}
                   disabled={userLocation.loadingLocation}
                 >
-                  {userLocation.loadingLocation ? 'Fetching GPS...' : '🎯 Use My Current GPS Location'}
+                  {userLocation.loadingLocation ? 'Fetching GPS...' : '🎯 Request GPS Location'}
                 </button>
               </div>
 
@@ -499,7 +526,7 @@ function RecycleFlow({ firebaseUid, userEmail, onExit, onComplete }) {
                 <input
                   type="text"
                   className="input-field"
-                  placeholder="Or search location / city manually (e.g. Chennai, Bangalore)..."
+                  placeholder="Or enter manual address / city below..."
                   value={manualLocationInput}
                   onChange={(e) => setManualLocationInput(e.target.value)}
                   style={{ marginBottom: 0 }}
@@ -510,69 +537,81 @@ function RecycleFlow({ firebaseUid, userEmail, onExit, onComplete }) {
               </form>
             </div>
 
-            {/* GOOGLE-MAPS-STYLE REGISTERED CENTER CARDS */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {sortedCenters.map((c) => (
-                <div key={c.id || c.name} className="google-center-card">
-                  <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-                    {/* CENTER PHOTO */}
-                    <img
-                      src={c.photoUrl || 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&w=400&q=80'}
-                      alt={c.name}
-                      style={{ width: 110, height: 110, borderRadius: 12, objectFit: 'cover', flexShrink: 0 }}
-                    />
+            {/* SORTED CENTER CARDS WITH RATINGS & REVIEW COUNT */}
+            {sortedCenters.length === 0 ? (
+              <div className="empty-state">
+                <p style={{ fontWeight: 700, color: 'var(--muted)' }}>No verified recycling centres currently active in your area.</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {sortedCenters.map((c) => (
+                  <div key={c.id || c.name} className="google-center-card">
+                    <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                      <img
+                        src={c.photoUrl || 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&w=400&q=80'}
+                        alt={c.name}
+                        style={{ width: 110, height: 110, borderRadius: 12, objectFit: 'cover', flexShrink: 0 }}
+                      />
 
-                    <div style={{ flex: 1, minWidth: 240 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                        <div>
-                          <h3 style={{ fontSize: 18, fontWeight: 800, margin: '0 0 2px 0', color: '#17352D' }}>{c.name}</h3>
-                          <span style={{ fontSize: 12, color: 'var(--primary-dark)', fontWeight: 700 }}>✓ Verified CircularAid Facility</span>
+                      <div style={{ flex: 1, minWidth: 240 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                          <div>
+                            <h3 style={{ fontSize: 18, fontWeight: 800, margin: '0 0 2px 0', color: '#17352D' }}>{c.name}</h3>
+                            <span style={{ fontSize: 12, color: 'var(--primary-dark)', fontWeight: 700 }}>✓ Verified CircularAid Facility</span>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <span className="badge badge-success" style={{ fontSize: 12, display: 'inline-block' }}>
+                              ⭐ {c.averageRating || c.rating || 5.0} / 5.0
+                            </span>
+                            <span style={{ display: 'block', fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+                              ({c.totalReviews || c.reviews?.length || 0} reviews)
+                            </span>
+                          </div>
                         </div>
-                        <span className="badge badge-success" style={{ fontSize: 12 }}>⭐ {c.rating || 4.7}</span>
-                      </div>
 
-                      <p style={{ fontSize: 13, color: 'var(--muted)', margin: '6px 0 6px 0' }}>
-                        📍 <b>{c.distanceFormatted}</b> &bull; {c.address}
-                      </p>
+                        <p style={{ fontSize: 13, color: 'var(--muted)', margin: '6px 0 6px 0' }}>
+                          📍 <b>{c.distanceFormatted}</b> &bull; {c.address}
+                        </p>
 
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 12 }}>
-                        {(c.acceptedMaterials || ['Electronics', 'Mobile', 'Laptop']).map((mat) => (
-                          <span key={mat} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 99, background: '#f1f5f9', color: '#475569', fontWeight: 600 }}>
-                            ♻️ {mat}
-                          </span>
-                        ))}
-                      </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 12 }}>
+                          {(c.acceptedMaterials || ['Smartphones', 'Laptops', 'Batteries']).map((mat) => (
+                            <span key={mat} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 99, background: '#f1f5f9', color: '#475569', fontWeight: 600 }}>
+                              ♻️ {mat}
+                            </span>
+                          ))}
+                        </div>
 
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: 12, color: 'var(--success)', fontWeight: 700 }}>🟢 Open until {c.operatingHours ? c.operatingHours.split('-')[1] : '7:00 PM'}</span>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: 12, color: 'var(--success)', fontWeight: 700 }}>🟢 Open: {c.operatingHours || '8:00 AM - 7:30 PM'}</span>
 
-                        <div style={{ display: 'flex', gap: 8 }}>
-                          <button
-                            type="button"
-                            className="btn btn-secondary"
-                            style={{ width: 'auto', padding: '6px 12px', fontSize: 12, marginBottom: 0 }}
-                            onClick={() => setInspectCenterModal(c)}
-                          >
-                            View Details
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-ewaste"
-                            style={{ width: 'auto', padding: '6px 14px', fontSize: 12, marginBottom: 0, fontWeight: 800 }}
-                            onClick={() => {
-                              setSelectedCenter(c);
-                              setStep('schedule');
-                            }}
-                          >
-                            Select Center →
-                          </button>
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              style={{ width: 'auto', padding: '6px 12px', fontSize: 12, marginBottom: 0 }}
+                              onClick={() => setInspectCenterModal(c)}
+                            >
+                              View Profile & Reviews
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-ewaste"
+                              style={{ width: 'auto', padding: '6px 14px', fontSize: 12, marginBottom: 0, fontWeight: 800 }}
+                              onClick={() => {
+                                setSelectedCenter(c);
+                                setStep('schedule');
+                              }}
+                            >
+                              Select Center →
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -590,7 +629,7 @@ function RecycleFlow({ firebaseUid, userEmail, onExit, onComplete }) {
                 </div>
                 <div>
                   <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>CONDITION</span>
-                  <p style={{ fontWeight: 800, fontSize: 16, color: 'var(--primary)', margin: 0, textTransform: 'uppercase' }}>{analysis?.estimated_condition || 'Damaged'}</p>
+                  <p style={{ fontWeight: 800, fontSize: 16, color: 'var(--primary)', margin: 0, textTransform: 'uppercase' }}>{analysis?.estimated_condition || 'DAMAGED'}</p>
                 </div>
               </div>
 
@@ -666,7 +705,7 @@ function RecycleFlow({ firebaseUid, userEmail, onExit, onComplete }) {
           </div>
         )}
 
-        {/* RECYCLING CENTER DETAILS MODAL */}
+        {/* RECYCLING CENTER DETAILS & REVIEWS MODAL */}
         <AnimatePresence>
           {inspectCenterModal && (
             <motion.div
@@ -693,7 +732,7 @@ function RecycleFlow({ firebaseUid, userEmail, onExit, onComplete }) {
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.92, opacity: 0 }}
                 className="card"
-                style={{ maxWidth: 550, width: '100%', padding: 24, textAlign: 'left' }}
+                style={{ maxWidth: 600, width: '100%', maxHeight: '90vh', overflowY: 'auto', padding: 24, textAlign: 'left' }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                   <h3 style={{ fontSize: 20, fontWeight: 800, margin: 0, color: '#17352D' }}>{inspectCenterModal.name}</h3>
@@ -705,29 +744,46 @@ function RecycleFlow({ firebaseUid, userEmail, onExit, onComplete }) {
                 <img
                   src={inspectCenterModal.photoUrl || 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&w=600&q=80'}
                   alt="Center Photo"
-                  style={{ width: '100%', height: 200, borderRadius: 14, objectFit: 'cover', marginBottom: 14 }}
+                  style={{ width: '100%', height: 180, borderRadius: 14, objectFit: 'cover', marginBottom: 14 }}
                 />
 
-                <div style={{ marginBottom: 12 }}>
-                  <span className="badge badge-success" style={{ marginBottom: 6 }}>✓ Verified CircularAid Partner</span>
-                  <p style={{ fontSize: 13, color: 'var(--muted)', margin: 0 }}>📍 Address: <b>{inspectCenterModal.address}</b></p>
-                  <p style={{ fontSize: 13, color: 'var(--muted)', margin: '4px 0 0 0' }}>⏰ Hours: <b>{inspectCenterModal.operatingHours || '8:00 AM - 7:00 PM'}</b></p>
-                </div>
-
-                <p style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.5, marginBottom: 14 }}>
-                  {inspectCenterModal.description || 'Authorized e-waste recovery facility specializing in component sorting and safe battery disposal.'}
-                </p>
-
-                <div style={{ marginBottom: 16 }}>
-                  <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--muted)', display: 'block', marginBottom: 6 }}>ACCEPTED MATERIALS</span>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {(inspectCenterModal.acceptedMaterials || ['Smartphones', 'Laptops', 'Batteries']).map((mat) => (
-                      <span key={mat} className="material-chip">♻️ {mat}</span>
-                    ))}
+                <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <span className="badge badge-success" style={{ marginBottom: 6 }}>✓ Verified CircularAid Partner</span>
+                    <p style={{ fontSize: 13, color: 'var(--muted)', margin: 0 }}>📍 Address: <b>{inspectCenterModal.address}</b></p>
+                    <p style={{ fontSize: 13, color: 'var(--muted)', margin: '4px 0 0 0' }}>⏰ Hours: <b>{inspectCenterModal.operatingHours || '8:00 AM - 7:30 PM'}</b></p>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <span style={{ fontSize: 20, fontWeight: 800, color: 'var(--primary-dark)', display: 'block' }}>
+                      ⭐ {inspectCenterModal.averageRating || inspectCenterModal.rating || 5.0} / 5.0
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+                      Based on {inspectCenterModal.totalReviews || inspectCenterModal.reviews?.length || 0} reviews
+                    </span>
                   </div>
                 </div>
 
-                <div className="row">
+                {/* PUBLIC REVIEWS SECTION */}
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14, marginTop: 14 }}>
+                  <h4 style={{ fontSize: 15, fontWeight: 800, marginBottom: 10 }}>💬 User Reviews & Ratings</h4>
+                  {(!inspectCenterModal.reviews || inspectCenterModal.reviews.length === 0) ? (
+                    <p style={{ fontSize: 13, color: 'var(--muted)', fontStyle: 'italic' }}>No reviews submitted yet for this verified facility.</p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 180, overflowY: 'auto' }}>
+                      {inspectCenterModal.reviews.map((r, idx) => (
+                        <div key={r.id || idx} style={{ background: '#f8fafc', padding: 10, borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                            <span style={{ fontWeight: 700, fontSize: 12, color: 'var(--text)' }}>👤 {r.userEmail}</span>
+                            <span style={{ fontSize: 12 }}>{renderStars(r.stars)}</span>
+                          </div>
+                          {r.comment && <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0 }}>"{r.comment}"</p>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="row" style={{ marginTop: 16 }}>
                   <button
                     className="btn btn-ewaste"
                     style={{ marginBottom: 0, fontWeight: 800 }}

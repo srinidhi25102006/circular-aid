@@ -440,8 +440,19 @@ function RoleRegistration({ role, userEmail, firebaseUid, onSubmitComplete }) {
                 </div>
 
                 <div className="form-group">
+                  <label className="form-label">📄 Business License / Govt Registration Document (Proof of Authenticity)</label>
+                  <label className="upload-box" style={{ padding: 16, background: 'var(--recycler-accent-light)', borderColor: 'var(--recycler-accent-border)' }}>
+                    <input type="file" accept="image/*,.pdf" onChange={(e) => handleFileUpload('documentUrl', e)} style={{ display: 'none' }} />
+                    {formData.documentUrl ? '📄 License Document Attached (Tap to Change)' : '📂 Upload Business License / State PCB Certificate / Govt ID'}
+                  </label>
+                  {formData.documentUrl && formData.documentUrl.startsWith('data:image') && (
+                    <img src={formData.documentUrl} alt="License Preview" className="preview-img" style={{ maxHeight: 140, marginTop: 8 }} />
+                  )}
+                </div>
+
+                <div className="form-group">
                   <label className="form-label">🖼️ Recycling Center Facility Photo</label>
-                  <label className="upload-box" style={{ padding: 16, background: 'var(--ewaste-accent-light)', borderColor: 'var(--ewaste-accent-border)' }}>
+                  <label className="upload-box" style={{ padding: 16, background: 'var(--recycler-accent-light)', borderColor: 'var(--recycler-accent-border)' }}>
                     <input type="file" accept="image/*" onChange={(e) => handleFileUpload('photoUrl', e)} style={{ display: 'none' }} />
                     {formData.photoUrl ? '📸 Center Photo Attached (Tap to Change)' : '📷 Upload Facility Photo (Building / Reception / Collection Area)'}
                   </label>
